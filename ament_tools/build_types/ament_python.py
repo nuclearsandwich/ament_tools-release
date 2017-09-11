@@ -42,7 +42,7 @@ IS_WINDOWS = os.name == 'nt'
 
 class AmentPythonBuildType(BuildType):
     build_type = 'ament_python'
-    description = "ament package built with Python"
+    description = 'ament package built with Python'
 
     def on_build(self, context):
         self._update_context_with_setup_arguments(context)
@@ -107,9 +107,9 @@ class AmentPythonBuildType(BuildType):
         assert nose, 'Could not find nosetests'
         # Use the -m module option for executing nose, to ensure we get the desired version.
         # Looking for just nosetest or nosetest3 on the PATH was not reliable in virtualenvs.
-        NOSETESTS_CMD = [context.python_interpreter, '-m', nose.__name__]
+        nosetests_cmd = [context.python_interpreter, '-m', nose.__name__]
         coverage_xml_file = os.path.join(context.build_space, 'coverage.xml')
-        cmd = NOSETESTS_CMD + [
+        cmd = nosetests_cmd + [
             '--nocapture',
             '--with-xunit', '--xunit-file=%s' % xunit_file,
             '--with-coverage', '--cover-erase',
@@ -159,7 +159,6 @@ class AmentPythonBuildType(BuildType):
                 'build', '--build-base', os.path.join(
                     context.build_space, 'build'),
                 'install', '--prefix', context.install_space,
-                '--install-scripts', os.path.join(context.install_space, 'bin'),
                 '--record', os.path.join(context.build_space, 'install.log'),
                 # prevent installation of dependencies specified in the setup.py file
                 '--single-version-externally-managed',
@@ -179,13 +178,22 @@ class AmentPythonBuildType(BuildType):
             cmd = [
                 context.python_interpreter, 'setup.py',
                 'develop', '--prefix', context.install_space,
-                '--script-dir', os.path.join(context.install_space, 'bin'),
                 '--no-deps',
             ]
             if context['setup.py']['data_files']:
                 cmd += ['install_data', '--install-dir', context.install_space]
             self._add_install_layout(context, cmd)
-            yield BuildAction(prefix + cmd, cwd=context.build_space)
+
+            env = dict(os.environ)
+            # Ensure that develop packages in an overlay workspace will get preference in the event
+            # of collision. For setuptools versions < 25.0.0, there is no impact. In version
+            # 25.0.0, the default behavior changed from 'rewrite' to 'raw'. Specifying 'rewrite' is
+            # necessary due to a bug in the processing of devlop packages when 'raw' is used:
+            # https://github.com/pypa/setuptools/issues/447
+            if 'SETUPTOOLS_SYS_PATH_TECHNIQUE' not in env:
+                env['SETUPTOOLS_SYS_PATH_TECHNIQUE'] = 'rewrite'
+
+            yield BuildAction(prefix + cmd, cwd=context.build_space, env=env)
 
     def _undo_develop(self, context, prefix):
         # Undo previous develop if .egg-info is found and develop symlinks
@@ -222,7 +230,7 @@ class AmentPythonBuildType(BuildType):
                 pass
 
         ext = '.sh' if not IS_WINDOWS else '.bat'
-        # deploy PATH environment hook
+        # deploy AMENT_PREFIX_PATH environment hook
         app_template_path = get_environment_hook_template_path('ament_prefix_path' + ext)
         deploy_file(
             context, os.path.dirname(app_template_path), os.path.basename(app_template_path),
@@ -281,6 +289,8 @@ class AmentPythonBuildType(BuildType):
         self._undo_install(context)
 
         items = ['setup.py']
+        if os.path.exists(os.path.join(context.source_space, 'setup.cfg')):
+            items.append('setup.cfg')
         # add all first level packages
         items += [p for p in context['setup.py']['packages'] if '.' not in p]
         # relative python-ish paths are allowed as entries in py_modules, see:

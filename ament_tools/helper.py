@@ -17,6 +17,7 @@ import filecmp
 from multiprocessing import cpu_count
 import os
 import re
+import shlex
 import shutil
 import stat
 
@@ -106,7 +107,7 @@ def ensure_make_job_flags(input_make_args):
     # If no -j/--jobs/-l/--load-average flags are in make_args
     if not extract_jobs_flags(' '.join(make_args)):
         # If -j/--jobs/-l/--load-average are in MAKEFLAGS
-        if extract_jobs_flags(os.environ.get('MAKEFLAGS', "")):
+        if extract_jobs_flags(os.environ.get('MAKEFLAGS', '')):
             # Do not extend make arguments, let MAKEFLAGS set things
             pass
         else:
@@ -235,7 +236,7 @@ def deploy_file(
     filename,
     dst_subfolder='',
     executable=False,
-    skip_if_exists=False
+    skip_if_exists=False,
 ):
     # copy the file if not already there and identical
     source_path = os.path.join(source_base_path, filename)
@@ -285,3 +286,14 @@ def deploy_file(
         new_mode = mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
         if new_mode != mode:
             os.chmod(destination_path, new_mode)
+
+
+def quote_shell_command(cmd):
+    if os.name != 'nt':
+        return ' '.join([(shlex.quote(c) if c != '&&' else c) for c in cmd])
+    quoted = []
+    for c in cmd:
+        if ' ' in c:
+            c = '"%s"' % (c.replace('"', r'\"'))
+        quoted.append(c)
+    return ' '.join(quoted)
