@@ -60,7 +60,7 @@ def remove_cmake_comments(content):
 
 
 def remove_cmake_comments_from_line(line):
-    # match coments starting with # which are not within a string enclosed in double quotes
+    # match comments starting with # which are not within a string enclosed in double quotes
     # strings:  vvvvvvvvv
     # comments:           vvvvv
     # other:                    vvvvvvvv
@@ -80,7 +80,8 @@ def extract_project_name(content):
     # optional quotes:                 vvvv               vv
     # project name:                        vvvvvvvvvvvvvvv
     # optional languages:                                       vvvvvvvv
-    match = re.search(r'project\s*\(\s*("?)([a-zA-Z0-9_]+)\1(\s+[^\)]*)?\)', content)
+    match = re.search(r'project\s*\(\s*("?)([a-zA-Z0-9_]+)\1(\s+[^\)]*)?\)', content,
+                      re.IGNORECASE)
     if not match:
         return None
     return match.group(2)
@@ -94,7 +95,8 @@ def extract_build_dependencies(content):
     # optional quotes:                         vvvv               vv
     # package name:                                vvvvvvvvvvvvvvv
     # optional arguments:                                               vvvvvvvv
-    matches = re.findall(r'find_package\s*\(\s*("?)([a-zA-Z0-9_]+)\1(\s+[^\)]*)?\)', content)
+    matches = re.findall(r'find_package\s*\(\s*("?)([a-zA-Z0-9_]+)\1(\s+[^\)]*)?\)', content,
+                         re.IGNORECASE)
     return [m[1] for m in matches]
 
 
