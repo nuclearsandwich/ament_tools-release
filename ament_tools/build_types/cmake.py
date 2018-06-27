@@ -24,8 +24,10 @@ from ament_tools.build_type import BuildAction
 from ament_tools.build_type import BuildType
 
 from ament_tools.build_types.cmake_common import CMAKE_EXECUTABLE
+from ament_tools.build_types.cmake_common import CMAKE_EXECUTABLE_ENV
 from ament_tools.build_types.cmake_common import cmakecache_exists_at
 from ament_tools.build_types.cmake_common import CTEST_EXECUTABLE
+from ament_tools.build_types.cmake_common import CTEST_EXECUTABLE_ENV
 from ament_tools.build_types.cmake_common import get_visual_studio_version
 from ament_tools.build_types.cmake_common import has_make_target
 from ament_tools.build_types.cmake_common import MAKE_EXECUTABLE
@@ -141,6 +143,7 @@ class CmakeBuildType(BuildType):
         # Calculate any extra cmake args which are not common between cmake build types
         extra_cmake_args = []
         if should_run_configure:
+            extra_cmake_args += ['-DBUILD_TESTING=%d' % int(context.build_tests)]
             extra_cmake_args += context.cmake_args
         if context.use_ninja:
             extra_cmake_args += ['-G', 'Ninja']
@@ -173,8 +176,7 @@ class CmakeBuildType(BuildType):
         # Execute the configure step
         # (either cmake or the cmake_check_build_system make target)
         if should_run_configure:
-            cmake_args = [context.source_space]
-            cmake_args.extend(extra_cmake_args)
+            cmake_args = list(extra_cmake_args)
             cmake_args += ['-DCMAKE_INSTALL_PREFIX=' + context.install_space]
             if IS_WINDOWS:
                 vsv = get_visual_studio_version()
@@ -195,8 +197,11 @@ class CmakeBuildType(BuildType):
                     cmake_args += ['-G', 'Xcode']
                 else:
                     cmake_args += ['-G', 'Unix Makefiles']
+            cmake_args += [context.source_space]
             if CMAKE_EXECUTABLE is None:
-                raise VerbExecutionError("Could not find 'cmake' executable")
+                raise VerbExecutionError(
+                    "Could not find 'cmake' executable, try setting the "
+                    'environment variable' + CMAKE_EXECUTABLE_ENV)
             yield BuildAction(prefix + [CMAKE_EXECUTABLE] + cmake_args)
         elif IS_LINUX:  # Check for reconfigure if available.
             if MAKE_EXECUTABLE is None:
@@ -299,7 +304,9 @@ class CmakeBuildType(BuildType):
                 yield build_action
         elif IS_WINDOWS:
             if CTEST_EXECUTABLE is None:
-                raise VerbExecutionError("Could not find 'ctest' executable")
+                raise VerbExecutionError(
+                    "Could not find 'ctest' executable, try setting the "
+                    'environment variable ' + CTEST_EXECUTABLE_ENV)
             # invoke CTest directly in order to pass arguments
             # it needs a specific configuration and currently there are no conf. specific tests
             cmd = prefix + [
@@ -354,8 +361,8 @@ class CmakeBuildType(BuildType):
                             continue
                         build_type = line[index + 1:]
                         break
-        if build_type in ['Debug']:
-            return 'Debug'
+        if build_type in ['Debug', 'MinSizeRel', 'RelWithDebInfo']:
+            return build_type
         return 'Release'
 
     def on_install(self, context):
